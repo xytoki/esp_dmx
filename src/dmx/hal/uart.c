@@ -29,7 +29,7 @@ static struct dmx_uart_t {
 } dmx_uart_context[DMX_NUM_MAX] = {
     {.num = 0, .dev = UART_LL_GET_HW(0)},
     {.num = 1, .dev = UART_LL_GET_HW(1)},
-#if DMX_NUM_MAX > 2
+#if SOC_UART_NUM > 2
     {.num = 2, .dev = UART_LL_GET_HW(2)},
 #endif
 };
