@@ -327,7 +327,26 @@ static void DMX_ISR_ATTR dmx_uart_isr(void *arg) {
 bool dmx_uart_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
   struct dmx_uart_t *uart = &dmx_uart_context[dmx_num];
 
-  periph_module_enable(uart_periph_signal[dmx_num].module);
+  ///@note BSR - fixed this compiler error
+  // periph_module_enable(uart_periph_signal[dmx_num].module);
+  switch( dmx_num )
+  {
+    case DMX_NUM_0:
+      periph_module_enable(PERIPH_UART0_MODULE);
+      break;
+    
+    case DMX_NUM_1:	
+      periph_module_enable(PERIPH_UART1_MODULE);
+      break;
+    
+    case DMX_NUM_2:
+      periph_module_enable(PERIPH_UART2_MODULE);
+      break;
+
+    case DMX_NUM_MAX:
+    default:
+      break;
+  }
   if (dmx_num != 0) {  // Default UART port for console
 #if SOC_UART_REQUIRE_CORE_RESET
     // ESP32C3 workaround to prevent UART outputting garbage data
@@ -335,7 +354,26 @@ bool dmx_uart_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
     periph_module_reset(uart_periph_signal[dmx_num].module);
     uart_ll_set_reset_core(uart->dev, false);
 #else
-    periph_module_reset(uart_periph_signal[dmx_num].module);
+    ///@note BSR - fixed this compiler error
+    // periph_module_reset(uart_periph_signal[dmx_num].module);
+    switch( dmx_num )
+    {
+      case DMX_NUM_0:
+        periph_module_reset(PERIPH_UART0_MODULE);
+        break;
+      
+      case DMX_NUM_1:	
+        periph_module_reset(PERIPH_UART1_MODULE);
+        break;
+      
+      case DMX_NUM_2:
+        periph_module_reset(PERIPH_UART2_MODULE);
+        break;
+
+      case DMX_NUM_MAX:
+      default:
+        break;
+    } 
 #endif
   }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -381,7 +419,26 @@ bool dmx_uart_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
 void dmx_uart_deinit(dmx_port_t dmx_num) {
   struct dmx_uart_t *uart = &dmx_uart_context[dmx_num];
   if (uart->num != 0) {  // Default UART port for console
-    periph_module_disable(uart_periph_signal[uart->num].module);
+    ///@note BSR - fixed this compiler error
+    // periph_module_disable(uart_periph_signal[uart->num].module);
+    switch( dmx_num )
+    {
+      case DMX_NUM_0:
+        periph_module_disable(PERIPH_UART0_MODULE);
+        break;
+      
+      case DMX_NUM_1:	
+        periph_module_disable(PERIPH_UART1_MODULE);
+        break;
+      
+      case DMX_NUM_2:
+        periph_module_disable(PERIPH_UART2_MODULE);
+        break;
+
+      case DMX_NUM_MAX:
+      default:
+        break;
+    } 
   }
 }
 
