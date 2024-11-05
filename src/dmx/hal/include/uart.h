@@ -47,6 +47,13 @@ bool dmx_uart_init(dmx_port_t dmx_num, void *isr_context, int isr_flags);
 void dmx_uart_deinit(dmx_port_t dmx_num);
 
 /**
+ * @brief Log debug data from the UART module.
+ *
+ * @param uart A handle to the DMX UART.
+ */
+void dmx_log_debug(dmx_port_t dmx_num);
+
+/**
  * @brief Sets the pins to be used by the DMX UART.
  *
  * @param uart A handle to the DMX UART.
