@@ -174,8 +174,11 @@ static void DMX_ISR_ATTR dmx_uart_isr(void *arg)
 
         // Now handle the condition where the DMX Frame Length has changed - this typically happens when inserting and removing the cable
         // and data frames are not fully received. Once the data stream is consistent then the dmx.size will be equal to dmxFrameLengthTracker
-        // and this logic will no longer be executed
-        if( (dmxFrameLengthTracker != 0) && (dmxFrameLengthTracker != driver->dmx.size)) 
+        // and this logic will no longer be executed - 
+        // 11/7/2024 - extended this logic to only perform length adjustment when the start code is 0x00 for a DMX packet
+        // this is because if there was an RDM frame of 22 bytes followed by a DMX frame of 512B the DMX frame would be provided to the App after only the 
+        // first 22B and not the entire frame. Therefore, if the frame is anything other than DMX do not bother updating the length
+        if( (dmxFrameLengthTracker != 0) && (dmxFrameLengthTracker != driver->dmx.size) && (driver->dmx.data[0] == 0x00)) 
         {
           taskENTER_CRITICAL_ISR(DMX_SPINLOCK(dmx_num));
           // Update dmx frame size based on how many bytes have been receieved between this BREAK and the last BREAK
