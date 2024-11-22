@@ -282,6 +282,10 @@ size_t dmx_receive_num(dmx_port_t dmx_num, dmx_packet_t *packet, size_t size,
   return packet_size;
 }
 
+// 11/22/2024 - modified since host processor will handle discovery response and 
+// needs ability to set the break length to 0 when responding to RDM discovery
+// remove code here that would not send data based on RDM header. This stack will 
+// not be performing RDM functions for now
 size_t dmx_receive(dmx_port_t dmx_num, dmx_packet_t *packet,
                    TickType_t wait_ticks) {
   DMX_CHECK(dmx_num < DMX_NUM_MAX, 0, "dmx_num error");
@@ -313,7 +317,7 @@ size_t dmx_send_num(dmx_port_t dmx_num, size_t size) {
     xSemaphoreGiveRecursive(driver->mux);
     return 0;
   }
-
+#if 0
   // Determine if the packet was an RDM packet
   bool is_rdm;
   rdm_header_t header;
@@ -425,10 +429,20 @@ size_t dmx_send_num(dmx_port_t dmx_num, size_t size) {
     driver->dmx.responder_sent_last = true;
     taskEXIT_CRITICAL(DMX_SPINLOCK(dmx_num));
   }
+#endif
 
-  // Determine if a DMX break is required and send the packet
-  if (is_rdm && header.cc == RDM_CC_DISC_COMMAND_RESPONSE &&
-      header.pid == RDM_PID_DISC_UNIQUE_BRANCH) {
+  // Since we want host processor to handle RDM then just set is_rdm to false
+  bool is_rdm = false;
+  rdm_header_t header;
+  // This is called when host processor must send data so assign size before transmit
+  taskENTER_CRITICAL(DMX_SPINLOCK(dmx_num));
+  driver->dmx.size = size;
+  taskEXIT_CRITICAL(DMX_SPINLOCK(dmx_num));  
+
+  // Determine if a DMX break is required and send the packet - if break length is 0 then immediately send
+  if( (is_rdm && header.cc == RDM_CC_DISC_COMMAND_RESPONSE && header.pid == RDM_PID_DISC_UNIQUE_BRANCH) ||
+      (driver->break_len == 0) )
+  {
     // RDM discovery responses do not send a DMX break - write immediately
     taskENTER_CRITICAL(DMX_SPINLOCK(dmx_num));
     driver->dmx.status = DMX_STATUS_SENDING;
@@ -440,7 +454,9 @@ size_t dmx_send_num(dmx_port_t dmx_num, size_t size) {
     // Enable DMX write interrupts
     dmx_uart_enable_interrupt(dmx_num, DMX_INTR_TX_ALL);
     taskEXIT_CRITICAL(DMX_SPINLOCK(dmx_num));
-  } else {
+  } 
+  else 
+  {
     // Send the packet by starting the DMX break
     taskENTER_CRITICAL(DMX_SPINLOCK(dmx_num));
     driver->dmx.head = 0;

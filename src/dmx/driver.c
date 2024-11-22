@@ -416,14 +416,23 @@ uint32_t dmx_get_break_len(dmx_port_t dmx_num) {
   return break_len;
 }
 
+// 11/22/2024 - modified since host processor will handle discovery response and 
+// needs ability to set the break length to 0 when responding to RDM discovery
 uint32_t dmx_set_break_len(dmx_port_t dmx_num, uint32_t break_len) {
   DMX_CHECK(dmx_num < DMX_NUM_MAX, 0, "dmx_num error");
   DMX_CHECK(dmx_driver_is_installed(dmx_num), 0, "driver is not installed");
 
   // Clamp the break length to within DMX specification
-  if (break_len < DMX_BREAK_LEN_MIN_US) {
+  if( break_len == 0 )
+  {
+    // This is now OK since we are sending RDM through this library and responding to the discovery direct from main MCU
+  }
+  else if( break_len < DMX_BREAK_LEN_MIN_US )
+  {
     break_len = DMX_BREAK_LEN_MIN_US;
-  } else if (break_len > DMX_BREAK_LEN_MAX_US) {
+  } 
+  else if( break_len > DMX_BREAK_LEN_MAX_US )
+  {
     break_len = DMX_BREAK_LEN_MAX_US;
   }
 
