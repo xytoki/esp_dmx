@@ -53,6 +53,7 @@ const char *TAG = "dmx";  // The log tagline for the library.
 
 dmx_driver_t *dmx_driver[DMX_NUM_MAX] = {};  // The DMX drivers for each port.
 
+#if 0
 static void rdm_default_identify_cb(dmx_port_t dmx_num, rdm_header_t *request,
                                     rdm_header_t *response, void *context) {
   if (request->cc == RDM_CC_SET_COMMAND &&
@@ -66,6 +67,7 @@ static void rdm_default_identify_cb(dmx_port_t dmx_num, rdm_header_t *request,
 #endif
   }
 }
+#endif 
 
 bool dmx_driver_install(dmx_port_t dmx_num, const dmx_config_t *config,
                         const dmx_personality_t *personalities,
@@ -137,7 +139,7 @@ bool dmx_driver_install(dmx_port_t dmx_num, const dmx_config_t *config,
   driver->uid.dev_id = bswap32(*(uint32_t *)(mac + 2));
 #else
   // Set the device ID based on what the user set in the kconfig
-  driver->uid.dev_id = RDM_UID_DEVICE_UID;
+  driver->uid.dev_id = RDM_UID_DEVICE_ID;
 #endif
   *(uint8_t *)(&driver->uid.dev_id) += dmx_num;  // Increment last octect
   driver->break_len = RDM_BREAK_LEN_US;
@@ -196,6 +198,9 @@ bool dmx_driver_install(dmx_port_t dmx_num, const dmx_config_t *config,
   rdm_register_disc_unique_branch(dmx_num, NULL, NULL);
   rdm_register_disc_mute(dmx_num, NULL, NULL);
   rdm_register_disc_un_mute(dmx_num, NULL, NULL);
+  
+  // For our implementation only support the discover, mute and unmute
+#if 0  
   rdm_register_device_info(dmx_num, config->model_id, config->product_category,
                            config->software_version_id, NULL, NULL);
   rdm_register_software_version_label(dmx_num, config->software_version_label,
@@ -221,6 +226,7 @@ bool dmx_driver_install(dmx_port_t dmx_num, const dmx_config_t *config,
   rdm_register_device_label(dmx_num, default_device_label, NULL, NULL);
   rdm_register_supported_parameters(dmx_num, NULL, NULL);
   rdm_register_parameter_description(dmx_num, NULL, NULL);
+#endif 
 
   // Initialize the UART peripheral
   if (!dmx_uart_init(dmx_num, driver, interrupt_flags)) {
@@ -416,23 +422,14 @@ uint32_t dmx_get_break_len(dmx_port_t dmx_num) {
   return break_len;
 }
 
-// 11/22/2024 - modified since host processor will handle discovery response and 
-// needs ability to set the break length to 0 when responding to RDM discovery
 uint32_t dmx_set_break_len(dmx_port_t dmx_num, uint32_t break_len) {
   DMX_CHECK(dmx_num < DMX_NUM_MAX, 0, "dmx_num error");
   DMX_CHECK(dmx_driver_is_installed(dmx_num), 0, "driver is not installed");
 
   // Clamp the break length to within DMX specification
-  if( break_len == 0 )
-  {
-    // This is now OK since we are sending RDM through this library and responding to the discovery direct from main MCU
-  }
-  else if( break_len < DMX_BREAK_LEN_MIN_US )
-  {
+  if (break_len < DMX_BREAK_LEN_MIN_US) {
     break_len = DMX_BREAK_LEN_MIN_US;
-  } 
-  else if( break_len > DMX_BREAK_LEN_MAX_US )
-  {
+  } else if (break_len > DMX_BREAK_LEN_MAX_US) {
     break_len = DMX_BREAK_LEN_MAX_US;
   }
 
