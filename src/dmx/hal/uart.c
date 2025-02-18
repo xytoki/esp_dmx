@@ -11,8 +11,16 @@
 #include "esp_private/esp_clk.h"
 #include "esp_private/periph_ctrl.h"
 #include "esp_timer.h"
+#include "hal/clk_gate_ll.h"
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
 #include "soc/uart_periph.h"
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+#include "soc/clk_tree_defs.h"
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+#include "esp_clk_tree.h"
+#include "esp_private/uart_share_hw_ctrl.h"
 #endif
 #else
 #include "driver/periph_ctrl.h"
@@ -29,7 +37,7 @@ static struct dmx_uart_t {
 } dmx_uart_context[DMX_NUM_MAX] = {
     {.num = 0, .dev = UART_LL_GET_HW(0)},
     {.num = 1, .dev = UART_LL_GET_HW(1)},
-#if SOC_UART_NUM > 2
+#if (DMX_NUM_MAX > 2) || CONFIG_IDF_TARGET_ESP32C6
     {.num = 2, .dev = UART_LL_GET_HW(2)},
 #endif
 };
@@ -327,32 +335,74 @@ static void DMX_ISR_ATTR dmx_uart_isr(void *arg) {
 bool dmx_uart_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
   struct dmx_uart_t *uart = &dmx_uart_context[dmx_num];
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+  periph_module_enable((periph_module_t)(dmx_num));
+
+#else
   periph_module_enable(uart_periph_signal[dmx_num].module);
+#endif
+
   if (dmx_num != 0) {  // Default UART port for console
 #if SOC_UART_REQUIRE_CORE_RESET
     // ESP32C3 workaround to prevent UART outputting garbage data
     uart_ll_set_reset_core(uart->dev, true);
-    periph_module_reset(uart_periph_signal[dmx_num].module);
-    uart_ll_set_reset_core(uart->dev, false);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+    periph_module_reset((periph_module_t)(dmx_num));
 #else
     periph_module_reset(uart_periph_signal[dmx_num].module);
+#endif
+    uart_ll_set_reset_core(uart->dev, false);
+#else
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+    periph_module_reset((periph_module_t)(dmx_num));
+#else
+    periph_module_reset(uart_periph_signal[dmx_num].module);
+#endif
 #endif
   }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
   uint32_t sclk_freq;
 #if CONFIG_IDF_TARGET_ESP32C6
   // UART2 on C6 is a LP UART, with fixed GPIO pins for tx, rx, and rts
+  // in main we already set dmx_num = LP_UART_NUM_0;  //LP_UART_NUM_0 (=UART2)
   if (dmx_num == 2) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+    uint32_t sclk_freq = 0;
+    soc_periph_lp_uart_clk_src_t clk_src = LP_UART_SCLK_DEFAULT;
+    esp_err_t ret = ESP_OK;
+    ret = esp_clk_tree_src_get_freq_hz((soc_module_clk_t)clk_src, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &sclk_freq);
+    if (ret != ESP_OK) {
+      // Unable to fetch LP UART source clock frequency
+      return ESP_FAIL;
+    }
+    // LP UART clock source is mixed with other peripherals in the same register
+    LP_UART_SRC_CLK_ATOMIC() {
+      /* Enable LP UART bus clock */
+      lp_uart_ll_enable_bus_clock(0, true);
+      lp_uart_ll_set_source_clk(uart->dev, clk_src);
+      lp_uart_ll_sclk_enable(0);
+    }
+    uart_hal_context_t hal;  // LP UART HAL Context
+    hal.dev = uart->dev;    // Initialize LP UART HAL with default parameters
+    uart_hal_init(&hal, dmx_num);
+    lp_uart_ll_set_baudrate(uart->dev, DMX_BAUD_RATE, sclk_freq);
+#else
     LP_CLKRST.lpperi.lp_uart_clk_sel = 0;  // Use LP_UART_SCLK_LP_FAST
+    uart_get_sclk_freq(UART_SCLK_DEFAULT, &sclk_freq);
+    uart_ll_set_baudrate(uart->dev, DMX_BAUD_RATE, sclk_freq);
+    uart_ll_set_baudrate(uart->dev, DMX_BAUD_RATE, sclk_freq);
+#endif
   } else {
     uart_ll_set_sclk(uart->dev, UART_SCLK_DEFAULT);
+    uart_get_sclk_freq(UART_SCLK_DEFAULT, &sclk_freq);
+    uart_ll_set_baudrate(uart->dev, DMX_BAUD_RATE, sclk_freq);
+    uart_ll_set_baudrate(uart->dev, DMX_BAUD_RATE, sclk_freq);
   }
-  uart_get_sclk_freq(UART_SCLK_DEFAULT, &sclk_freq);
 #else
   uart_ll_set_sclk(uart->dev, UART_SCLK_DEFAULT);
   uart_get_sclk_freq(UART_SCLK_DEFAULT, &sclk_freq);
-#endif
   uart_ll_set_baudrate(uart->dev, DMX_BAUD_RATE, sclk_freq);
+#endif
 #else
   uart_ll_set_sclk(uart->dev, UART_SCLK_APB);
   uart_ll_set_baudrate(uart->dev, DMX_BAUD_RATE);
@@ -381,7 +431,11 @@ bool dmx_uart_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
 void dmx_uart_deinit(dmx_port_t dmx_num) {
   struct dmx_uart_t *uart = &dmx_uart_context[dmx_num];
   if (uart->num != 0) {  // Default UART port for console
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+    periph_module_disable((periph_module_t)(dmx_num));
+#else
     periph_module_disable(uart_periph_signal[uart->num].module);
+#endif
   }
 }
 
