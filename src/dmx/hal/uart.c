@@ -491,9 +491,11 @@ bool dmx_uart_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
       periph_module_enable(PERIPH_UART1_MODULE);
       break;
     
+#if SOC_UART_NUM > 2
     case DMX_NUM_2:
       periph_module_enable(PERIPH_UART2_MODULE);
       break;
+#endif
 
     case DMX_NUM_MAX:
     default:
@@ -518,9 +520,11 @@ bool dmx_uart_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
         periph_module_reset(PERIPH_UART1_MODULE);
         break;
       
+#if SOC_UART_NUM > 2
       case DMX_NUM_2:
         periph_module_reset(PERIPH_UART2_MODULE);
         break;
+#endif
 
       case DMX_NUM_MAX:
       default:
@@ -583,9 +587,11 @@ void dmx_uart_deinit(dmx_port_t dmx_num) {
         periph_module_disable(PERIPH_UART1_MODULE);
         break;
       
+#if SOC_UART_NUM > 2
       case DMX_NUM_2:
         periph_module_disable(PERIPH_UART2_MODULE);
         break;
+#endif
 
       case DMX_NUM_MAX:
       default:
