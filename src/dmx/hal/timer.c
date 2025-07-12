@@ -33,7 +33,7 @@ static bool DMX_ISR_ATTR dmx_timer_isr(
 
       // Reset the alarm for the end of the DMX mark-after-break
       dmx_timer_set_alarm(dmx_num, driver->mab_len, false);
-    } else {
+    } else if(driver->dmx.head == 0 && driver->dmx.progress != DMX_PROGRESS_IN_DATA) {
       // Write data to the UART
       int write_len = driver->dmx.size;
       dmx_uart_write_txfifo(dmx_num, driver->dmx.data, &write_len);
