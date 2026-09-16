@@ -31,7 +31,10 @@ static bool DMX_ISR_ATTR dmx_timer_isr(
       dmx_uart_invert_tx(dmx_num, 0);
       driver->dmx.progress = DMX_PROGRESS_IN_MAB;
 
-      // Reset the alarm for the end of the DMX mark-after-break
+      // Break used auto-reload, so the counter is already running from 0
+      // before this ISR. Restart MAB from invert so ISR latency cannot
+      // shrink the mark below DMX_MAB_LEN_MIN_US (12).
+      dmx_timer_set_counter(dmx_num, 0);
       dmx_timer_set_alarm(dmx_num, driver->mab_len, false);
     } else if(driver->dmx.head == 0 && driver->dmx.progress != DMX_PROGRESS_IN_DATA) {
       // Write data to the UART
